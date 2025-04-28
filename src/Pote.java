@@ -1,57 +1,45 @@
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class Pote {
-    private final int capacidade;
-    private final Semaphore mutex = new Semaphore(1);
-    private final Semaphore poteVazio = new Semaphore(0);
-    private final Semaphore porcoes = new Semaphore(0);
-    private boolean cozinheiroChamado = false;
-    private int porcoesConsumidas = 0;
+    private int servings = 0;
+    private final int capacity;
+    private final Lock lock = new ReentrantLock();
+    private final Condition empty = lock.newCondition();
+    private final Condition full = lock.newCondition();
 
-    public Pote(int capacidade) {
-        this.capacidade = capacidade;
+    public Pote(int capacity) {
+        this.capacity = capacity;
     }
 
-    public void pegarPorcao(int id) throws InterruptedException {
-        boolean comeu = false;
-
-        while (!comeu) {
-            mutex.acquire();
-
-            if (porcoes.availablePermits() == 0 && !cozinheiroChamado) {
-                cozinheiroChamado = true;
-                System.out.printf("Selvagem %d viu o pote vazio e chamou o cozinheiro.%n", id);
-                poteVazio.release();
+    public void pegarPorcao() throws InterruptedException {
+        lock.lock();
+        try {
+            while (servings == 0) {
+                System.out.println(Thread.currentThread().getName() + " found pot empty, waking cook.");
+                empty.signal();               // Wake the cook
+                full.await();                // Wait until the pot is refilled
             }
-
-            if (porcoes.tryAcquire()) {
-                porcoesConsumidas++;
-                System.out.printf("Selvagem %d comeu. Porções comidas nesta rodada: %d/%d%n",
-                        id, porcoesConsumidas, capacidade);
-                comeu = true;
-            }
-
-            mutex.release();
-
-            if (!comeu) Thread.sleep(100); // espera antes de tentar de novo
+            servings--;
+            System.out.println(Thread.currentThread().getName() + " got a serving. Servings left: " + servings);
+        } finally {
+            lock.unlock();
         }
     }
 
     public void encherPote() throws InterruptedException {
-        while (true) {
-            poteVazio.acquire();
-
-            System.out.println("Cozinheiro está enchendo o pote...");
-            Thread.sleep(1000); // simula tempo de cozimento
-
-            porcoes.release(capacidade);
-
-            mutex.acquire();
-            cozinheiroChamado = false;
-            porcoesConsumidas = 0;
-            mutex.release();
-
-            System.out.println("Cozinheiro encheu o pote.");
+        lock.lock();
+        try {
+            // Wait until pot is empty
+            while (servings > 0) {
+                empty.await();
+            }
+            System.out.println("Cook is refilling the pot.");
+            servings = capacity;
+            full.signalAll();             // Wake all waiting savages
+        } finally {
+            lock.unlock();
         }
     }
 }

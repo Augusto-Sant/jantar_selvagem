@@ -1,9 +1,7 @@
 public class Selvagem extends Thread {
-    private final int id;
     private final Pote pote;
 
-    public Selvagem(int id, Pote pote) {
-        this.id = id;
+    public Selvagem(Pote pote) {
         this.pote = pote;
     }
 
@@ -11,11 +9,17 @@ public class Selvagem extends Thread {
     public void run() {
         try {
             while (true) {
-                pote.pegarPorcao(id);
-                Thread.sleep((long) (Math.random() * 1000));
+                pote.pegarPorcao();
+                comer();
+                Thread.sleep((long) (Math.random() * 1000)); // Simulate time between meals
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    private void comer() throws InterruptedException {
+        System.out.println(Thread.currentThread().getName() + " is eating.");
+        Thread.sleep((long) (Math.random() * 1000));   // Simulate eating time
     }
 }
