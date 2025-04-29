@@ -9,6 +9,8 @@ public class Pote {
     private final Condition vazio = lock.newCondition();
     private final Condition cheio = lock.newCondition();
 
+    private boolean cozinheiroNotificado = false; // NEW FLAG
+
     public Pote(int capacidade) {
         this.capacidade = capacidade;
     }
@@ -17,13 +19,20 @@ public class Pote {
         lock.lock();
         try {
             while (porcoes == 0) {
-                System.out.println(Thread.currentThread().getName() + " encontrou pote vazio, acordando cozinheiro.");
-                vazio.signal(); // acorda cozinheiro
-                cheio.await(); // espera pote ser enchido novamente
+
+                // Only one thread notifies the cook
+                if (!cozinheiroNotificado) {
+                    System.out.println(Thread.currentThread().getName() + " encontrou pote vazio, acordando cozinheiro..");
+                    cozinheiroNotificado = true;
+                    vazio.signal(); // Acorda o cozinheiro apenas uma vez
+                }
+
+                cheio.await(); // Espera até que o pote seja reenchido
             }
-            Thread.sleep((long) (Math.random() * 1000));
+
+            Thread.sleep((long) (Math.random() * 2000));
             porcoes--;
-            System.out.println(Thread.currentThread().getName() + " pegou uma porção. porções restantes: " + porcoes);
+            System.out.println(Thread.currentThread().getName() + " pegou uma porção. Porções restantes: " + porcoes);
         } finally {
             lock.unlock();
         }
@@ -33,12 +42,17 @@ public class Pote {
         lock.lock();
         try {
             while (porcoes > 0) {
-                vazio.await();
+                System.out.println("Cozinheiro esperando... pote ainda tem comida.");
+                vazio.await(); // Aguarda até que o pote esteja vazio
             }
-            System.out.println("cozinheiro está enchendo pote.");
-            Thread.sleep((long) (Math.random() * 3000));
+
+            System.out.println("Cozinheiro está enchendo o pote.");
+            Thread.sleep((long) (Math.random() * 5000)); // Simula tempo de cozimento
             porcoes = capacidade;
-            cheio.signalAll(); // acorda todos os selvagens dormindo
+            cozinheiroNotificado = false; // Reseta o sinalizador
+            System.out.println("Cozinheiro terminou de encher. Porções adicionadas: " + porcoes);
+
+            cheio.signalAll(); // Acorde todos os selvagens
         } finally {
             lock.unlock();
         }
